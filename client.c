@@ -10,6 +10,8 @@
 #include <arpa/inet.h>
 #include <time.h>
 #include <math.h>
+#include <stdbool.h>
+#include <unistd.h>
 
 
 
@@ -21,8 +23,10 @@ int main(void) {
     char serverIP[100];
     char serverResponse[1000];
     int serverPort;
+    bool login = false;
+    int socketNetworkFileDescriptor;
 
-    while (1) {
+    do {
         printf("Welcome User to the Text Conferencing application\n");
         printf("Login by following the format (/login <client ID> <password> <server-IP> <server-port>): ");
         fgets(logInInfo, 1000, stdin);
@@ -34,7 +38,7 @@ int main(void) {
             printf("PLEASE TRY AGAIN \n\n");
 
         } else {
-            int socketNetworkFileDescriptor = socket(AF_INET, SOCK_STREAM, 0);
+            socketNetworkFileDescriptor = socket(AF_INET, SOCK_STREAM, 0);
             if(socketNetworkFileDescriptor==-1) {
                 printf("ERROR: COULD NOT ESTABLISH A PROPER TCP CONNECTION.\n");
                 return 0;
@@ -58,6 +62,9 @@ int main(void) {
 
             }
             
+            
+
+            sprintf(char *__restrict s, const char *__restrict format, ...)
             send(socketNetworkFileDescriptor, userID, strlen(userID), 0);
             int responseBytes = recv(socketNetworkFileDescriptor, serverResponse, sizeof(serverResponse),0);
             serverResponse[responseBytes] = '\0';
@@ -81,9 +88,35 @@ int main(void) {
 
             printf("%s\n %s\n %s\n %s\n %d\n", userCommand, userID, password, serverIP, serverPort);
 
-            break;
+            login = true;
+            
         }
-    }
 
 
-}
+
+        char clientDataSequence[1000];
+        char command[50];
+        char sequenceID[100];
+
+        while(login) {
+            fgets(clientDataSequence, 1000, stdin);
+            clientDataSequence[strcspn(clientDataSequence, "\n")] = '\0';
+            int result = sscanf(clientDataSequence, "%s %s",  command, sequenceID);
+
+            if(strcmp(command, "/logout")==0) {
+                close(socketNetworkFileDescriptor);
+                login = false;
+                printf("\n\n");
+            } else if(strcmp(command, "/quit")==0) {
+                return 0;
+            }
+
+            
+        }
+    } while (!login);
+
+} 
+
+
+
+

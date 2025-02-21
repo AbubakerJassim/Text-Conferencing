@@ -23,7 +23,7 @@ struct session list_of_all_active_sessions[MAX_SESSIONS] = {0};
 
 int find_index_of_client(char *client_id) {
   for (int i = 0; i < MAX_CLIENTS; i++) {
-    if (list_of_all_clients[i] == '\0') {
+    if (list_of_all_clients[i].client_id[0] == '\0') {
       continue;
     } 
     else {
@@ -37,7 +37,7 @@ int find_index_of_client(char *client_id) {
 
 int find_index_of_session(char* session_id){
     for (int i = 0; i < MAX_SESSIONS; i++) {
-        if (list_of_all_active_sessions[i] == '\0') {
+        if (list_of_all_active_sessions[i].session_id[0] == '\0') {
           continue;
         } 
         else {
@@ -112,7 +112,7 @@ int login_type(struct message message_received, int sockfd) {
 void exit_type(struct message message_received, int sockfd){
     // Perhaps check if all sessions they are in are quit or not? 
     pthread_mutex_lock(&clients_mutex);
-    int find_index_of_client = find_index_of_client(message_received.source)
+    int index_of_client = find_index_of_client(message_received.source);
     list_of_all_clients[index_of_client].active = false;
     pthread_mutex_unlock(&clients_mutex);
     close(sockfd);
@@ -142,7 +142,7 @@ void join_session(struct message message_received, int sockfd){
         create_message(message_to_send, buf);
         pthread_mutex_unlock(&clients_mutex);
         send(sockfd, buf, strlen(buf), 0);
-        return -1;
+        return;
     }
     
     // Add new member into session
@@ -165,7 +165,7 @@ void join_session(struct message message_received, int sockfd){
 
     pthread_mutex_unlock(&clients_mutex);
     send(sockfd, buf, strlen(buf), 0);
-    return 0;
+    return;
 
 }
 
@@ -174,7 +174,9 @@ void leave_session(struct message message_received, int sockfd){
     for(int i = 0; i < MAX_SESSIONS; i++){
         for(int j = 0; j < MAX_CLIENTS_IN_SESSION; j++){
             if(list_of_all_active_sessions[i].clients_in_session[j].client_id == message_received.source){
-                list_of_all_active_sessions[i].clients_in_session[j] = NULL;
+                list_of_all_active_sessions[i].clients_in_session[j].client_id[0] = '\0';
+                list_of_all_active_sessions[i].clients_in_session[j].sockfd = -1;
+                list_of_all_active_sessions[i].clients_in_session[j].active = false;
                 break;
             }
         }
@@ -188,10 +190,13 @@ void leave_session(struct message message_received, int sockfd){
 void new_session(struct message message_received, int sockfd){
     pthread_mutex_lock(&clients_mutex);
     int index_of_client = find_index_of_client(message_received.source);
-    struct session session_to_add = {.clients_in_session[0] =  list_of_all_clients[index_of_client],.session_id = message_received.data};
+    struct session session_to_add;
+    strcpy(session_to_add.session_id, message_received.data);  
+    session_to_add.clients_in_session[0] = list_of_all_clients[index_of_client];
+
 
     for(int i = 0; i < MAX_SESSIONS; i++){
-        if (list_of_all_active_sessions[i] == NULL){
+        if (list_of_all_active_sessions[i].session_id[0] == '\0'){
             list_of_all_active_sessions[i] = session_to_add;
             break;
         }
@@ -214,7 +219,7 @@ void message_type(struct message message_received, int sockfd){
     for(int i = 0; i < MAX_SESSIONS; i++){
         for(int j = 0; j < MAX_CLIENTS_IN_SESSION; j++){
             if(list_of_all_active_sessions[i].clients_in_session[j].client_id == message_received.source){
-                session_index_of_client = i
+                session_index_of_client = i;
                 break;
             }
         }
@@ -246,7 +251,7 @@ void query_type(struct message message_received, int sockfd){
     char buf[BUFFER_SIZE] = "List of online users are: ";
     
     for(int i = 0; i < MAX_CLIENTS; i++){
-        if(list_of_all_clients[i] != '\0' && list_of_all_clients[i].active){    // This if condition will legit 100% not work lol I dunno
+        if(list_of_all_clients[i].client_id[0] != '\0' && list_of_all_clients[i].active){    // This if condition will legit 100% not work lol I dunno
             strcat(buf, list_of_all_clients[i].client_id);
             
             char temp_buf[] = ", ";
@@ -257,7 +262,7 @@ void query_type(struct message message_received, int sockfd){
     
     char temp_buf[] = "\n List of all active sessions are: ";
     for(int i = 0; i < MAX_SESSIONS; i++){
-        if(list_of_all_active_sessions[i] != '\0' && list_of_all_active_sessions[i].active){    // This if condition will legit 100% not work lol I dunno
+        if(list_of_all_active_sessions[i].session_id[0] != '\0' && list_of_all_active_sessions[i].active){    // This if condition will legit 100% not work lol I dunno
             
             strcat(buf, list_of_all_active_sessions[i].session_id);
             char temp_buf2[] = ", ";

@@ -51,8 +51,8 @@ int find_index_of_session(char* session_id){
 
 void create_message(struct message message_to_send, char *buf) {
     // Might have issues with null terminating and sprintf. Be careful.
-  sprintf(buf, "%s:%s:%s:%s", itoa(message_to_send.type),
-          itoa(message_to_send.size), message_to_send.source,
+  sprintf(buf, "%d:%d:%s:%s", message_to_send.type,
+          message_to_send.size, message_to_send.source,
           message_to_send.type);
   return;
 }

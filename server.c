@@ -284,12 +284,6 @@ void query_type(struct message message_received, int sockfd){
     send(sockfd, buf_to_send, strlen(buf_to_send), 0);
 }
 
-
-
-
-
-
-
 void *client_handler(void *client_fd_pt) {
   int client_fd = *(int *)client_fd_pt;
   free(client_fd_pt);
@@ -324,13 +318,19 @@ void *client_handler(void *client_fd_pt) {
     case NEW_SESS:
         new_session(message_received, client_fd);
         break;
+
+    case MESSAGE:
+        message_type(message_received, client_fd);
+        break;
+    
+    case QUERY:
+        query_type(message_received, client_fd);
+        break;
     
     default:
         break;
     }
-
   }
-
 }
 
 int main(int argc, char *argv[]) {

@@ -256,20 +256,17 @@ void query_type(struct message message_received, int sockfd){
     for(int i = 0; i < MAX_CLIENTS; i++){
         if(list_of_all_clients[i].client_id[0] != '\0' && list_of_all_clients[i].active){    // This if condition will legit 100% not work lol I dunno
             strcat(buf, list_of_all_clients[i].client_id);
-            
-            char temp_buf[] = ", ";
-            strcat(buf, temp_buf);
+            strcat(buf, ", ");
         }
 
     }
     
     char temp_buf[] = "\n List of all active sessions are: ";
     for(int i = 0; i < MAX_SESSIONS; i++){
-        if(list_of_all_active_sessions[i].session_id[0] != '\0' && list_of_all_active_sessions[i].active){    // This if condition will legit 100% not work lol I dunno
+        if(list_of_all_active_sessions[i].session_id[0] != '\0'){    
             
             strcat(buf, list_of_all_active_sessions[i].session_id);
-            char temp_buf2[] = ", ";
-            strcat(buf, temp_buf2);
+            strcat(buf, ", ");
         }
     }
 

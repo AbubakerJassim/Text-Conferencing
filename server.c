@@ -155,7 +155,7 @@ void join_session(struct message message_received, int sockfd){
     
     // Should I == NULL or == \0?
     for(int i = 0; i< MAX_CLIENTS_IN_SESSION; i++){
-        if (list_of_all_active_sessions[index_of_session].clients_in_session[i] == NULL)
+        if (list_of_all_active_sessions[index_of_session].clients_in_session[i].client_id[0] == '\0')
         {
             list_of_all_active_sessions[index_of_session].clients_in_session[i] = list_of_all_clients[find_index_of_client(message_received.source)];
             break;
@@ -218,7 +218,7 @@ void message_type(struct message message_received, int sockfd){
     pthread_mutex_lock(&clients_mutex);
     for(int i = 0; i < MAX_SESSIONS; i++){
         for(int j = 0; j < MAX_CLIENTS_IN_SESSION; j++){
-            if(list_of_all_active_sessions[i].clients_in_session[j].client_id == message_received.source){
+            if(strcmp(list_of_all_active_sessions[i].clients_in_session[j].client_id, message_received.source) == 0){
                 session_index_of_client = i;
                 break;
             }
@@ -233,10 +233,13 @@ void message_type(struct message message_received, int sockfd){
  
         
     for(int i = 0; i < MAX_CLIENTS_IN_SESSION; i++){
-        if(list_of_all_active_sessions[session_index_of_client].clients_in_session != NULL){
-            char buf[BUFFER_SIZE];
-            create_message(message_received, buf);
-            send(list_of_all_clients[find_index_of_client(message_received.source)].sockfd, buf, strlen(buf), 0);
+        if(list_of_all_active_sessions[session_index_of_client].clients_in_session[i].client_id[0] != '\0' ){
+            // Don't send message to original sender
+            if (strcmp(list_of_all_active_sessions[session_index_of_client].clients_in_session[i].client_id, message_received.source) != 0){
+                char buf[BUFFER_SIZE];
+                create_message(message_received, buf);
+                send(list_of_all_active_sessions[session_index_of_client].clients_in_session[i].sockfd, buf, strlen(buf), 0);
+            }
         }
     }
     pthread_mutex_unlock(&clients_mutex); 
@@ -277,8 +280,8 @@ void query_type(struct message message_received, int sockfd){
         .data = buf
     };
     
-    create_message(message_to_send, buf_to_send);
     char buf_to_send[BUFFER_SIZE];
+    create_message(message_to_send, buf_to_send);
 
     pthread_mutex_unlock(&clients_mutex); 
     send(sockfd, buf_to_send, strlen(buf_to_send), 0);

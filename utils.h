@@ -44,7 +44,7 @@ struct client {
 
 struct session {
   char session_id[MAX_NAME];
-  struct client* clients_in_session[MAX_CLIENTS_IN_SESSION];
+  struct client clients_in_session[MAX_CLIENTS_IN_SESSION];
   // An array of Client
 };
 

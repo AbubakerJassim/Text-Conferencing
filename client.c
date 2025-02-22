@@ -9,15 +9,120 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <time.h>
-#include <math.h>
 #include <stdbool.h>
 #include <unistd.h>
+#include <pthread.h>
+#include <semaphore.h>
+
+
+sem_t semaphore;
+pthread_mutex_t lock;
+bool Error = false;
 
 typedef enum {
     LOGIN, LO_ACK, LO_NAK, EXIT, JOIN, JN_ACK, JN_NAK,
     LEAVE_SESS, NEW_SESS, NS_ACK, MESSAGE, QUERY, QU_ACK, INVALID
 } PacketType;
 
+void* listenToServer(void* socketNetworkFileDescriptor) {
+    printf("Thread is working\n");
+    fflush(stdout);
+
+    char serverResponse[] = ":::";
+    
+    /*
+    int bytes = recv(*(int*)socketNetworkFileDescriptor, serverResponse, sizeof(serverResponse),0);
+
+    if(bytes<=0) {
+        pthread_exit(NULL);
+    }
+    */
+
+    int valueOfType;
+    int packet_size;
+
+    //extracting the type of packet that I recieved
+    char* firstColon = strchr(serverResponse, ':');
+    int size = firstColon - serverResponse + 1;
+    char* type = (char*)malloc(size*sizeof(char));
+    strncpy(type, serverResponse, size-1);
+    type[size-1] = '\0';
+
+
+    sscanf(type, "%d", &valueOfType);
+    printf("%d\n", valueOfType);
+    fflush(stdout);
+
+    //Extracting the Size of the packet
+    firstColon++;
+    char* secondColon = strchr(firstColon, ':');
+    int length = secondColon - firstColon + 1;
+    char* packetSize = (char*)malloc(length*sizeof(char));
+    strncpy(packetSize, firstColon, length-1);
+    packetSize[length-1] = '\0';
+
+    sscanf(packetSize, "%d", &packet_size);
+
+    //Extracting the source ID
+   
+    char* packetSource = NULL;
+    if(valueOfType==MESSAGE) {
+         secondColon++;
+        char* thirdColon = strrchr(serverResponse, ':');
+        int sourceLength = thirdColon - secondColon + 1;
+        packetSource =  (char*)malloc(sourceLength*sizeof(char));
+        strncpy(packetSource, secondColon, sourceLength-1);
+        packetSource[sourceLength-1] = '\0';
+    }
+
+    //Extracting Packet Data
+    char Data[1000];
+
+    if(packet_size!=0) {
+
+        char* lastColon = strrchr(serverResponse, ':');
+        lastColon++;
+    
+        strncpy(Data, lastColon, packet_size);
+        Data[packet_size] = '\0';
+    }
+    
+
+    //printf("%d, %d, %s, %s\n", valueOfType, packet_size, packetSource, Data);
+
+    if(valueOfType==JN_NAK) {
+        printf("ERROR: %s\n", Data);
+        fflush(stdout);
+        //sem_post(&semaphore);
+        
+    } else if (valueOfType==JN_ACK) {
+        printf("SUCCESS: You have successfully joined the session with ID %s\n", Data);
+        fflush(stdout);
+        //sem_post(&semaphore);
+
+    } else if(valueOfType==NS_ACK) {
+        //sem_post(&semaphore);
+
+    } else if(valueOfType==MESSAGE) {
+        printf("From User %s: %s", packetSource, Data);
+        
+
+    } else if (valueOfType==QU_ACK) {
+        printf("List: %s", Data);
+        //sem_post(&semaphore);
+
+    }
+    
+
+    if(packetSource!=NULL) {
+        free(packetSource);
+    }
+    free(type);
+    free(packetSize);
+
+    return NULL;
+    
+}
 
 int main(void) {
     char logInInfo[1000];
@@ -100,29 +205,48 @@ int main(void) {
         char command[50];
         char sequenceID[100];
         char clientData[1000];
+        pthread_t serverListener;
+
+        if(login) {
+            pthread_create(&serverListener, NULL, listenToServer, &socketNetworkFileDescriptor);
+            pthread_detach(serverListener);
+            sem_init(&semaphore, 0, 0);
+
+        }
+                
 
         while(login) {
             fgets(clientDataSequence, 1000, stdin);
             clientDataSequence[strcspn(clientDataSequence, "\n")] = '\0';
-           int result = sscanf(clientDataSequence, "%s %[^\n]", command, sequenceID);
-
+            int results = sscanf(clientDataSequence, "%s %[^\n]", command, sequenceID);
+            if(results==0) {
+                printf("IDIOT: You did not enter anything. Try Again Moron\n");
+                continue;
+            }
+            
             if(strcmp(command, "/logout")==0) {
-                close(socketNetworkFileDescriptor);
-                login = false;
-                printf("\n\n");
-            } else if(strcmp(command, "/quit")==0) {
-                sprintf(clientData, "%d:%d:%s",EXIT,0, userID);
+                sprintf(clientData, "%d:%d:%s:",EXIT,0, userID);
                 printf("%s\n", clientData);
 
                 //send(socketNetworkFileDescriptor,clientData, strlen(clientData), 0);
-                return 0;
+                //close(socketNetworkFileDescriptor);
+                login = false;
+                printf("\n\n");
+            } else if(strcmp(command, "/quit")==0) {
+                sprintf(clientData, "%d:%d:%s:",EXIT,0, userID);
+                printf("%s\n", clientData);
+
+                //send(socketNetworkFileDescriptor,clientData, strlen(clientData), 0);
+                exit(0);
             } else if(strcmp(command, "/joinsession")==0) {
                 sprintf(clientData, "%d:%d:%s:%s",JOIN,(int)strlen(sequenceID), userID, sequenceID);
                 printf("%s\n", clientData);
 
                 //send(socketNetworkFileDescriptor,clientData, strlen(clientData), 0);
+                //sem_wait(&semaphore);
+             
             } else if(strcmp(command, "/leavesession")==0) {
-                sprintf(clientData, "%d:%d:%s", LEAVE_SESS, 0, userID);
+                sprintf(clientData, "%d:%d:%s:", LEAVE_SESS, 0, userID);
                 printf("%s\n", clientData);
 
                 //send(socketNetworkFileDescriptor,clientData, strlen(clientData), 0);
@@ -131,13 +255,18 @@ int main(void) {
                 printf("%s\n", clientData);
 
                 //send(socketNetworkFileDescriptor,clientData, strlen(clientData), 0);
+                //sem_wait(&semaphore);
+                printf("SUCCESS: you have successfully created a session with ID %s", sequenceID);
+                
+                
             
             } else if(strcmp(command, "/list")==0) {
-                sprintf(clientData, "%d:%d:%s", QUERY, 0, userID);
+                sprintf(clientData, "%d:%d:%s:", QUERY, 0, userID);
                 printf("%s\n", clientData);
 
                 //send(socketNetworkFileDescriptor,clientData, strlen(clientData), 0);
-
+                //sem_wait(&semaphore);
+    
             } else {
                 sprintf(clientData, "%d:%d:%s:%s %s", MESSAGE, (int)strlen(command) + (int)strlen(sequenceID)+1, userID, command,sequenceID);
                 printf("%s\n", clientData);

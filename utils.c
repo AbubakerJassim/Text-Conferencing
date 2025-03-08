@@ -53,6 +53,7 @@ int process_message(struct message* message_received, char* buf) {
 
   // data
   memcpy(message_received->data, buf + start_index, message_received->size);
+  message_received->data[message_received->size] = '\0'; 
 
   // Should I return -1/check if len(data) > MAX_DATA?
 

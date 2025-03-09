@@ -31,16 +31,17 @@ void* listenToServer(void* socketNetworkFileDescriptor) {
         printf("Thread is working\n");
         fflush(stdout);
 
-        char serverResponse[] = ":::";
+        char serverResponse[1000];
         
         
         int bytes = recv(*(int*)socketNetworkFileDescriptor, serverResponse, sizeof(serverResponse),0);
 
         if(bytes<=0) {
+            sem_post(&semaphore);
+            printf("Talha is stupid\n");
             pthread_exit(NULL);
         }
         
-
         int valueOfType;
         int packet_size;
 
@@ -53,8 +54,6 @@ void* listenToServer(void* socketNetworkFileDescriptor) {
 
 
         sscanf(type, "%d", &valueOfType);
-        printf("%d\n", valueOfType);
-        fflush(stdout);
 
         //Extracting the Size of the packet
         firstColon++;
@@ -82,16 +81,13 @@ void* listenToServer(void* socketNetworkFileDescriptor) {
         char Data[1000];
 
         if(packet_size!=0) {
-
-            char* lastColon = strrchr(serverResponse, ':');
-            lastColon++;
-        
-            strncpy(Data, lastColon, packet_size);
+    
+            strncpy(Data, &serverResponse[strlen(serverResponse)-packet_size], packet_size);
             Data[packet_size] = '\0';
         }
         
 
-        //printf("%d, %d, %s, %s\n", valueOfType, packet_size, packetSource, Data);
+        printf("%d:%d:%s:%s\n", valueOfType, packet_size, packetSource, Data);
 
         if(valueOfType==JN_NAK) {
             printf("ERROR: %s\n", Data);
@@ -107,11 +103,11 @@ void* listenToServer(void* socketNetworkFileDescriptor) {
             sem_post(&semaphore);
 
         } else if(valueOfType==MESSAGE) {
-            printf("From User %s: %s", packetSource, Data);
+            printf("From User %s: %s\n", packetSource, Data);
             
 
         } else if (valueOfType==QU_ACK) {
-            printf("List: %s", Data);
+            printf("%s\n", Data);
             sem_post(&semaphore);
 
         }
@@ -122,6 +118,8 @@ void* listenToServer(void* socketNetworkFileDescriptor) {
         }
         free(type);
         free(packetSize);
+        memset(serverResponse, 0, 1000);
+        
 
     }
     
@@ -186,15 +184,18 @@ int main(void) {
             sprintf(clientUserInfo, "%d:%d:%s:%s", LOGIN, (int)strlen(password), userID, password);
             printf("%s\n", clientUserInfo);
             
-            
             send(socketNetworkFileDescriptor, clientUserInfo, strlen(clientUserInfo), 0);
-            int responseBytes = recv(socketNetworkFileDescriptor, serverResponse, sizeof(serverResponse),0);
+
+            int responseBytes = recv(socketNetworkFileDescriptor, serverResponse, 2000,0);
+            printf("%s\n", serverResponse);
+
 
             if((serverResponse[1]!=':') || (serverResponse[0]!='1')) {
                 char* errorMessage = strrchr(serverResponse, ':') + 1;
                 printf("ERROR: %s.\n\n", errorMessage);
                 continue;
             }
+
             
             
 
@@ -229,11 +230,13 @@ int main(void) {
             }
             
             if(strcmp(command, "/logout")==0) {
+                memset(clientData, 0, sizeof(clientData));
                 sprintf(clientData, "%d:%d:%s:",EXIT,0, userID);
                 printf("%s\n", clientData);
 
                 send(socketNetworkFileDescriptor,clientData, strlen(clientData), 0);
                 close(socketNetworkFileDescriptor);
+                sem_wait(&semaphore);
                 login = false;
                 printf("\n\n");
             } else if(strcmp(command, "/quit")==0) {
@@ -260,7 +263,7 @@ int main(void) {
 
                 send(socketNetworkFileDescriptor,clientData, strlen(clientData), 0);
                 sem_wait(&semaphore);
-                printf("SUCCESS: you have successfully created a session with ID %s", sequenceID);
+                printf("SUCCESS: you have successfully created a session with ID %s\n", sequenceID);
                 
                 
             

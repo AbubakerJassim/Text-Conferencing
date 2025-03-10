@@ -162,6 +162,9 @@ void join_session(struct message message_received, int sockfd){
         return;
     }
     
+    // Somehow must check what session this user is in ?
+
+
     printf("Session to join is: %d\n", index_of_session);
 
     // Add new member into session
@@ -212,7 +215,20 @@ void leave_session(struct message message_received, int sockfd){
 
                 printf("session_id[0].clients[0] = %s", list_of_all_active_sessions[i].clients_in_session[j].client_id);
 
-                for(int k = 0; k <= MAX_CLIENTS_IN_SESSION)
+                bool is_session_empty = true;
+                for(int k = 0; k <= MAX_CLIENTS_IN_SESSION; k++){
+                  if(list_of_all_active_sessions[i].clients_in_session[k].client_id[0] == '\0'){
+                    continue;
+                  }
+                  else{
+                    is_session_empty = true;
+                    break;
+                  }
+                  
+                  if(is_session_empty);
+                    list_of_all_active_sessions[i].session_id[0] = '\0';
+
+                }
 
                 break;
             }
@@ -277,7 +293,19 @@ void message_type(struct message message_received, int sockfd){
             if (strcmp(list_of_all_active_sessions[session_index_of_client].clients_in_session[i].client_id, message_received.source) != 0){
                 char buf[BUFFER_SIZE];
                 create_message(message_received, buf);
-                send(list_of_all_active_sessions[session_index_of_client].clients_in_session[i].sockfd, buf, strlen(buf), 0);
+
+
+                ssize_t bytes_sent = send(list_of_all_active_sessions[session_index_of_client].clients_in_session[i].sockfd, buf, strlen(buf), 0);
+            
+                if (bytes_sent == -1) {
+                    if (errno == ECONNRESET || errno == EPIPE) {
+                        printf("Client %s disconnected. Removing from session.\n", list_of_all_active_sessions[session_index_of_client].clients_in_session[i].client_id);
+                        
+                        close(list_of_all_active_sessions[session_index_of_client].clients_in_session[i].sockfd);
+                        list_of_all_active_sessions[session_index_of_client].clients_in_session[i].client_id[0] = '\0'; 
+                    } else {
+                        perror("Send failed"); 
+                    }
             }
         }
     }

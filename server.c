@@ -19,6 +19,8 @@ pthread_mutex_t clients_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // This will be filled up later
 struct client list_of_all_clients[MAX_CLIENTS] = {0};
+
+
 struct session list_of_all_active_sessions[MAX_SESSIONS] = {0};
 
 int find_index_of_client(char *client_id) {
@@ -28,10 +30,13 @@ int find_index_of_client(char *client_id) {
     } 
     else {
       if (!strcmp(client_id, list_of_all_clients[i].client_id)) {
+        printf("Found index: %d\n", i);
         return i;
       }
     }
   }
+  printf("Couldn't find index\n");
+
   return -1;
 }
 
@@ -53,27 +58,32 @@ void create_message(struct message message_to_send, char *buf) {
     // Might have issues with null terminating and sprintf. Be careful.
   sprintf(buf, "%d:%d:%s:%s", message_to_send.type,
           message_to_send.size, message_to_send.source,
-          message_to_send.type);
+          message_to_send.data);
   return;
+  printf("buf is:  %s", buf);
 }
 
 int login_type(struct message message_received, int sockfd) {
-
   pthread_mutex_lock(&clients_mutex);
   int index_of_client = find_index_of_client(message_received.source);
+  
   pthread_mutex_unlock(&clients_mutex);
-
   // Mutex unlock I guess?
 
   if (index_of_client == -1) {
+
     // Send back that username does not exist
+
     struct message message_to_send = {.type = LO_NAK,
                                       .size = strlen("Username does not exist"),
                                       .source = "",  // Not sure about this
                                       .data = "Username does not exist"};
-    char buf[BUFFER_SIZE];
+                                      
+    char buf[BUFFER_SIZE]; 
+
     create_message(message_to_send, buf);
-    send(sockfd, buf, strlen(buf), 0);
+
+    ssize_t bytes_sent = send(sockfd, buf, strlen(buf), 0);
     return -1;
   }
 
@@ -103,9 +113,14 @@ int login_type(struct message message_received, int sockfd) {
   char buf[BUFFER_SIZE];
   create_message(message_to_send, buf);
   list_of_all_clients[index_of_client].active = true;
+  list_of_all_clients[index_of_client].sockfd = sockfd;
   pthread_mutex_unlock(&clients_mutex);  // Perhaps might have to place this AFTER the send()?
 
+  int size = 0;
+  setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &size, sizeof(size));
+
   send(sockfd, buf, strlen(buf), 0);
+
   return 0;
 }
 
@@ -113,11 +128,13 @@ void exit_type(struct message message_received, int sockfd){
     // Perhaps check if all sessions they are in are quit or not? 
     pthread_mutex_lock(&clients_mutex);
     int index_of_client = find_index_of_client(message_received.source);
-    list_of_all_clients[index_of_client].active = false;
+
+    if(index_of_client != -1);
+      list_of_all_clients[index_of_client].active = false;
+
     pthread_mutex_unlock(&clients_mutex);
     close(sockfd);
     pthread_exit(NULL);
-
 }
 
 void join_session(struct message message_received, int sockfd){
@@ -145,11 +162,15 @@ void join_session(struct message message_received, int sockfd){
         return;
     }
     
+    printf("Session to join is: %d\n", index_of_session);
+
     // Add new member into session
     struct message message_to_send = {.type = JN_ACK,
-    .size = strlen("Session ID does not exist"),
-    .source = "",  // Not sure about this
-    .data = "Session ID does not exist"};
+    .size = strlen(message_received.data),
+    .source = ""  // Not sure about this
+    };
+    strcpy(message_to_send.data, message_received.data);
+
     char buf[BUFFER_SIZE];
     create_message(message_to_send, buf);
     
@@ -157,26 +178,42 @@ void join_session(struct message message_received, int sockfd){
     for(int i = 0; i< MAX_CLIENTS_IN_SESSION; i++){
         if (list_of_all_active_sessions[index_of_session].clients_in_session[i].client_id[0] == '\0')
         {
-            list_of_all_active_sessions[index_of_session].clients_in_session[i] = list_of_all_clients[find_index_of_client(message_received.source)];
-            break;
+          // printf("Before change : list_of_all_active_sessions[index_of_session].clients_in_session[i].client_id = %s\n", 
+          // list_of_all_active_sessions[index_of_session].clients_in_session[i].client_id);
+
+          list_of_all_active_sessions[index_of_session].clients_in_session[i] = list_of_all_clients[find_index_of_client(message_received.source)];
+          // printf("Index within list_of_all_active_sessions[0].clients_in_session is %d, should be 0\n", i);
+
+          // printf("After change : list_of_all_active_sessions[index_of_session].clients_in_session[i].client_id = %s\n", 
+          // list_of_all_active_sessions[index_of_session].clients_in_session[i].client_id);
+
+          break;
         }
         
     }
 
     pthread_mutex_unlock(&clients_mutex);
+    printf("Message to send is: %s", buf);
     send(sockfd, buf, strlen(buf), 0);
     return;
 
 }
 
 void leave_session(struct message message_received, int sockfd){
+    printf("In leave session\n");
     pthread_mutex_lock(&clients_mutex);
     for(int i = 0; i < MAX_SESSIONS; i++){
         for(int j = 0; j < MAX_CLIENTS_IN_SESSION; j++){
-            if(list_of_all_active_sessions[i].clients_in_session[j].client_id == message_received.source){
+              if(strcmp(list_of_all_active_sessions[i].clients_in_session[j].client_id, message_received.source) == 0){
+                printf("Found session to leave from\n");
                 list_of_all_active_sessions[i].clients_in_session[j].client_id[0] = '\0';
                 list_of_all_active_sessions[i].clients_in_session[j].sockfd = -1;
                 list_of_all_active_sessions[i].clients_in_session[j].active = false;
+
+                printf("session_id[0].clients[0] = %s", list_of_all_active_sessions[i].clients_in_session[j].client_id);
+
+                for(int k = 0; k <= MAX_CLIENTS_IN_SESSION)
+
                 break;
             }
         }
@@ -188,6 +225,7 @@ void leave_session(struct message message_received, int sockfd){
 }
 
 void new_session(struct message message_received, int sockfd){
+    printf("Within new session\n");
     pthread_mutex_lock(&clients_mutex);
     int index_of_client = find_index_of_client(message_received.source);
     struct session session_to_add;
@@ -204,11 +242,12 @@ void new_session(struct message message_received, int sockfd){
 
     pthread_mutex_unlock(&clients_mutex);
     struct message message_to_send = {.type = NS_ACK,
-        .size = strlen(""),
+        .size = 0,
         .source = "",  // Not sure about this
         .data = ""};
     char buf[BUFFER_SIZE];
     create_message(message_to_send, buf);
+    printf("buf to send in new session is: %s", buf);
     send(sockfd, buf, strlen(buf), 0);
 }
 
@@ -249,38 +288,41 @@ void message_type(struct message message_received, int sockfd){
 
 void query_type(struct message message_received, int sockfd){
 
+    printf("Within Query\n");
     pthread_mutex_lock(&clients_mutex); 
 
     char buf[BUFFER_SIZE] = "List of online users are: ";
     
     for(int i = 0; i < MAX_CLIENTS; i++){
-        if(list_of_all_clients[i].client_id[0] != '\0' && list_of_all_clients[i].active){    // This if condition will legit 100% not work lol I dunno
-            strcat(buf, list_of_all_clients[i].client_id);
-            strcat(buf, ", ");
-        }
+      if(list_of_all_clients[i].client_id[0] != '\0' && list_of_all_clients[i].active){    // This if condition will legit 100% not work lol I dunno
+        printf("Found something to add to list, i = %d\n", i);
+        strcat(buf, list_of_all_clients[i].client_id);
+        strcat(buf, ", ");
+      }
 
     }
-    
-    char temp_buf[] = "\n List of all active sessions are: ";
+
+    strcat(buf, "\n List of all active sessions are: ");
     for(int i = 0; i < MAX_SESSIONS; i++){
-        if(list_of_all_active_sessions[i].session_id[0] != '\0'){    
-            
-            strcat(buf, list_of_all_active_sessions[i].session_id);
-            strcat(buf, ", ");
-        }
+      if(list_of_all_active_sessions[i].session_id[0] != '\0'){    
+        strcat(buf, list_of_all_active_sessions[i].session_id);
+        strcat(buf, ", ");
+      }
     }
 
+    
     struct message message_to_send = {
         .type = QU_ACK,
         .size = strlen(buf),
-        .source = message_received.source,
-        .data = buf
     };
+    
+    strcpy(message_to_send.data, buf);
     
     char buf_to_send[BUFFER_SIZE];
     create_message(message_to_send, buf_to_send);
 
     pthread_mutex_unlock(&clients_mutex); 
+    printf("What we're sending is: %s\n", buf_to_send);
     send(sockfd, buf_to_send, strlen(buf_to_send), 0);
 }
 
@@ -288,11 +330,16 @@ void *client_handler(void *client_fd_pt) {
   int client_fd = *(int *)client_fd_pt;
   free(client_fd_pt);
   bool logged_in = false;
-
+  char buf[BUFFER_SIZE];
   while (1) {
-    // recv() call
-    struct message message_received = {0};
-    // Process_message call
+    printf("client handler, waiting for stuff...\n");
+
+    // ssize_t bytes_sent = send(client_fd, buf, strlen(buf), 0);
+
+    int bytes_received = recv(client_fd, buf, BUFFER_SIZE, 0);
+    struct message message_received = {};
+
+    process_message(&message_received, buf);
 
     if (!logged_in) {
       if (login_type(message_received, client_fd) != -1) {
@@ -338,6 +385,14 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "Insufficient arguments for %s", argv[0]);
     exit(EXIT_FAILURE);
   }
+
+  strcpy(list_of_all_clients[0].client_id, "Abubakr");
+  strcpy(list_of_all_clients[0].password, "abubaker2003");
+  list_of_all_clients[0].active = false;
+
+  strcpy(list_of_all_clients[1].client_id, "Taha");
+  strcpy(list_of_all_clients[1].password, "taha2003");
+  list_of_all_clients[0].active = false;
 
   int sockfd, new_fd;
   struct addrinfo hints, *servinfo, *p;
@@ -398,11 +453,6 @@ int main(int argc, char *argv[]) {
     if (new_fd == -1) {
       perror("accept");
       continue;
-    }
-
-    // Test send btw:
-    if (send(new_fd, "Hello, world!", 13, 0) == -1) {
-      perror("send");
     }
 
     pthread_t thread;

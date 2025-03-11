@@ -27,10 +27,6 @@ typedef enum {
 void* listenToServer(void* socketNetworkFileDescriptor) {
     while(1) {
 
-    
-        printf("Thread is working\n");
-        fflush(stdout);
-
         char serverResponse[1000];
         
         
@@ -38,7 +34,6 @@ void* listenToServer(void* socketNetworkFileDescriptor) {
 
         if(bytes<=0) {
             sem_post(&semaphore);
-            printf("Talha is stupid\n");
             pthread_exit(NULL);
         }
         
@@ -87,7 +82,7 @@ void* listenToServer(void* socketNetworkFileDescriptor) {
         }
         
 
-        printf("%d:%d:%s:%s\n", valueOfType, packet_size, packetSource, Data);
+        printf("Server response:  %d:%d:%s:%s\n", valueOfType, packet_size, packetSource, Data);
 
         if(valueOfType==JN_NAK) {
             printf("ERROR: %s\n", Data);
@@ -144,6 +139,7 @@ int main(void) {
         memset(password, 0, sizeof(password));
         memset(serverIP, 0, sizeof(serverIP));
         memset(serverResponse, 0, sizeof(serverResponse));
+
         printf("Welcome User to the Text Conferencing application\n");
         printf("Login by following the format (/login <client ID> <password> <server-IP> <server-port>): ");
         fgets(logInInfo, 1000, stdin);
@@ -236,14 +232,14 @@ int main(void) {
             clientDataSequence[strcspn(clientDataSequence, "\n")] = '\0';
             int results = sscanf(clientDataSequence, "%s %[^\n]", command, sequenceID);
             if(results==0) {
-                printf("IDIOT: You did not enter anything. Try Again Moron\n");
+                printf("Error: You did not enter anything. Try Again \n");
                 continue;
             }
             
             if(strcmp(command, "/logout")==0) {
                 memset(clientData, 0, sizeof(clientData));
                 sprintf(clientData, "%d:%d:%s:",EXIT,0, userID);
-                printf("%s\n", clientData);
+                printf("sending:  %s\n", clientData);
 
                 send(socketNetworkFileDescriptor,clientData, strlen(clientData), 0);
                 close(socketNetworkFileDescriptor);
@@ -252,25 +248,25 @@ int main(void) {
                 printf("\n\n");
             } else if(strcmp(command, "/quit")==0) {
                 sprintf(clientData, "%d:%d:%s:",EXIT,0, userID);
-                printf("%s\n", clientData);
+                printf("sending:  %s\n", clientData);
 
                 send(socketNetworkFileDescriptor,clientData, strlen(clientData), 0);
                 exit(0);
             } else if(strcmp(command, "/joinsession")==0) {
                 sprintf(clientData, "%d:%d:%s:%s", JOIN, (int)strlen(sequenceID), userID, sequenceID);
-                printf("%s\n", clientData);
+                printf("sending:  %s\n", clientData);
 
                 send(socketNetworkFileDescriptor,clientData, strlen(clientData), 0);
                 sem_wait(&semaphore);
              
             } else if(strcmp(command, "/leavesession")==0) {
                 sprintf(clientData, "%d:%d:%s:", LEAVE_SESS, 0, userID);
-                printf("%s\n", clientData);
+                printf("sending  %s\n", clientData);
 
                 send(socketNetworkFileDescriptor,clientData, strlen(clientData), 0);
             } else if (strcmp(command, "/createsession")==0) {
                 sprintf(clientData, "%d:%d:%s:%s", NEW_SESS, (int)strlen(sequenceID), userID, sequenceID);
-                printf("%s\n", clientData);
+                printf("sending  %s\n", clientData);
 
                 send(socketNetworkFileDescriptor,clientData, strlen(clientData), 0);
                 sem_wait(&semaphore);
@@ -280,14 +276,14 @@ int main(void) {
             
             } else if(strcmp(command, "/list")==0) {
                 sprintf(clientData, "%d:%d:%s:", QUERY, 0, userID);
-                printf("%s\n", clientData);
+                printf("sending  %s\n", clientData);
 
                 send(socketNetworkFileDescriptor,clientData, strlen(clientData), 0);
                 sem_wait(&semaphore);
     
             } else {
                 sprintf(clientData, "%d:%d:%s:%s %s", MESSAGE, (int)strlen(command) + (int)strlen(sequenceID)+1, userID, command,sequenceID);
-                printf("%s\n", clientData);
+                printf("sending  %s\n", clientData);
 
                 send(socketNetworkFileDescriptor,clientData, strlen(clientData), 0);
 

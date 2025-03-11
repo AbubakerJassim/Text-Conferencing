@@ -39,7 +39,7 @@ bool is_session_empty(int index_of_session){
   for(int i = 0; i < MAX_CLIENTS_IN_SESSION; i++){
     if(list_of_all_active_sessions[index_of_session].clients_in_session[i].active){
     
-      // printf("Problem is at index %d, where status is %d\n", i, list_of_all_active_sessions[index_of_session].clients_in_session[i].active);
+      printf("Problem is at index %d, where status is %d\n", i, list_of_all_active_sessions[index_of_session].clients_in_session[i].active);
       return false;
     }
   
@@ -56,12 +56,12 @@ int find_index_of_client(char *client_id) {
     } 
     else {
       if (!strcmp(client_id, list_of_all_clients[i].client_id)) {
-        // printf("Found index: %d\n", i);
+        printf("Found index: %d\n", i);
         return i;
       }
     }
   }
-  // printf("Couldn't find index\n");
+  printf("Couldn't find index\n");
 
   return -1;
 }
@@ -337,12 +337,14 @@ void message_type(struct message message_received, int sockfd){
                 ssize_t bytes_sent = send(list_of_all_active_sessions[session_index_of_client].clients_in_session[i].sockfd, buf, strlen(buf), 0);
             
                 if (bytes_sent == -1) {
-                    if (errno == ECONNRESET || errno == EPIPE) {
-                        printf("Client %s disconnected. Removing from session.\n", list_of_all_active_sessions[session_index_of_client].clients_in_session[i].client_id);
-                        
+                    if (errno == ECONNRESET || errno == EPIPE) {                        
                         close(list_of_all_active_sessions[session_index_of_client].clients_in_session[i].sockfd);
-                        list_of_all_active_sessions[session_index_of_client].clients_in_session[i].client_id[0] = '\0'; 
-                    } else {
+                        list_of_all_active_sessions[session_index_of_client].clients_in_session[i].client_id[0] = '\0';
+                        int index_of_client_that_killed = find_index_of_client(list_of_all_active_sessions[session_index_of_client].clients_in_session[i].client_id);
+                        list_of_all_clients[index_of_client_that_killed].active = false;
+                        list_of_all_clients[index_of_client_that_killed].client_id[0] = '\0';
+                        list_of_all_clients[index_of_client_that_killed].sockfd = -1;
+                      } else {
                         perror("Send failed"); 
                     }
                 }

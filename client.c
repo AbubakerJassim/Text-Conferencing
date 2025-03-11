@@ -81,8 +81,7 @@ void* listenToServer(void* socketNetworkFileDescriptor) {
             Data[packet_size] = '\0';
         }
         
-
-        printf("Server response:  %d:%d:%s:%s\n", valueOfType, packet_size, packetSource, Data);
+        
 
         if(valueOfType==JN_NAK) {
             printf("ERROR: %s\n", Data);
@@ -183,13 +182,10 @@ int main(void) {
             char clientUserInfo[1000];
             memset(clientUserInfo, 0, 1000);
             
-            sprintf(clientUserInfo, "%d:%d:%s:%s", LOGIN, (int)strlen(password), userID, password);
-            printf("%s\n", clientUserInfo);
-            
+            sprintf(clientUserInfo, "%d:%d:%s:%s", LOGIN, (int)strlen(password), userID, password);            
             send(socketNetworkFileDescriptor, clientUserInfo, strlen(clientUserInfo), 0);
 
             int responseBytes = recv(socketNetworkFileDescriptor, serverResponse, 2000,0);
-            printf("%s\n", serverResponse);
 
 
             if((serverResponse[1]!=':') || (serverResponse[0]!='1')) {
@@ -204,6 +200,8 @@ int main(void) {
 
 
             login = true;
+            fflush(stdout);
+            printf("SUCCESS: Login was successful.\n\n");
             
         }
 
@@ -239,7 +237,6 @@ int main(void) {
             if(strcmp(command, "/logout")==0) {
                 memset(clientData, 0, sizeof(clientData));
                 sprintf(clientData, "%d:%d:%s:",EXIT,0, userID);
-                printf("sending:  %s\n", clientData);
 
                 send(socketNetworkFileDescriptor,clientData, strlen(clientData), 0);
                 close(socketNetworkFileDescriptor);
@@ -248,25 +245,21 @@ int main(void) {
                 printf("\n\n");
             } else if(strcmp(command, "/quit")==0) {
                 sprintf(clientData, "%d:%d:%s:",EXIT,0, userID);
-                printf("sending:  %s\n", clientData);
 
                 send(socketNetworkFileDescriptor,clientData, strlen(clientData), 0);
                 exit(0);
             } else if(strcmp(command, "/joinsession")==0) {
                 sprintf(clientData, "%d:%d:%s:%s", JOIN, (int)strlen(sequenceID), userID, sequenceID);
-                printf("sending:  %s\n", clientData);
 
                 send(socketNetworkFileDescriptor,clientData, strlen(clientData), 0);
                 sem_wait(&semaphore);
              
             } else if(strcmp(command, "/leavesession")==0) {
                 sprintf(clientData, "%d:%d:%s:", LEAVE_SESS, 0, userID);
-                printf("sending  %s\n", clientData);
 
                 send(socketNetworkFileDescriptor,clientData, strlen(clientData), 0);
             } else if (strcmp(command, "/createsession")==0) {
                 sprintf(clientData, "%d:%d:%s:%s", NEW_SESS, (int)strlen(sequenceID), userID, sequenceID);
-                printf("sending  %s\n", clientData);
 
                 send(socketNetworkFileDescriptor,clientData, strlen(clientData), 0);
                 sem_wait(&semaphore);
@@ -276,14 +269,12 @@ int main(void) {
             
             } else if(strcmp(command, "/list")==0) {
                 sprintf(clientData, "%d:%d:%s:", QUERY, 0, userID);
-                printf("sending  %s\n", clientData);
 
                 send(socketNetworkFileDescriptor,clientData, strlen(clientData), 0);
                 sem_wait(&semaphore);
     
             } else {
                 sprintf(clientData, "%d:%d:%s:%s %s", MESSAGE, (int)strlen(command) + (int)strlen(sequenceID)+1, userID, command,sequenceID);
-                printf("sending  %s\n", clientData);
 
                 send(socketNetworkFileDescriptor,clientData, strlen(clientData), 0);
 

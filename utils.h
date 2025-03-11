@@ -7,7 +7,7 @@
 #include <string.h>
 
 #define MAX_NAME 100
-#define MAX_DATA 100
+#define MAX_DATA 2000
 #define BUFFER_SIZE 2000
 #define MAX_CLIENTS_IN_SESSION 10
 #define MAX_CLIENTS 100

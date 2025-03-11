@@ -49,16 +49,19 @@ int process_message(struct message* message_received, char* buf) {
   memcpy(message_received->source, buf + start_index, end_index - start_index);
   message_received->source[end_index - start_index] = '\0';
   start_index = ++end_index;
-  printf("Message source is: %d\n", message_received->source);
-
+  printf("Message source is: %s\n", message_received->source);
+  
   // data
-  memcpy(message_received->data, buf + start_index, message_received->size);
-  message_received->data[message_received->size] = '\0'; 
+  if (message_received->size > 0) {
+    memcpy(message_received->data, buf + start_index, message_received->size);
+  }
+  message_received->data[message_received->size] = '\0';
+  printf("Message receieved is: %s\n", message_received->data);
+  
+  // printf("Packet is %s\n", buf);
+
 
   // Should I return -1/check if len(data) > MAX_DATA?
-
-  // Should I null-terminate message_received->data ?
-  // message_received->data[message_received->size] = '\0';
 
   return 0;
 }

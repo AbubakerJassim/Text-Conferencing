@@ -20,7 +20,6 @@ pthread_mutex_t clients_mutex = PTHREAD_MUTEX_INITIALIZER;
 // This will be filled up later
 struct client list_of_all_clients[MAX_CLIENTS] = {0};
 
-
 struct session list_of_all_active_sessions[MAX_SESSIONS] = {0};
 
 int find_index_of_client(char *client_id) {
@@ -306,13 +305,14 @@ void message_type(struct message message_received, int sockfd){
                     } else {
                         perror("Send failed"); 
                     }
+                }
             }
         }
     }
     pthread_mutex_unlock(&clients_mutex); 
     return;
+  }
 
-}
 
 void query_type(struct message message_received, int sockfd){
 

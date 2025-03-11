@@ -39,7 +39,7 @@ bool is_session_empty(int index_of_session){
   for(int i = 0; i < MAX_CLIENTS_IN_SESSION; i++){
     if(list_of_all_active_sessions[index_of_session].clients_in_session[i].active){
     
-      printf("Problem is at index %d, where status is %d\n", i, list_of_all_active_sessions[index_of_session].clients_in_session[i].active);
+      // printf("Problem is at index %d, where status is %d\n", i, list_of_all_active_sessions[index_of_session].clients_in_session[i].active);
       return false;
     }
   
@@ -56,12 +56,12 @@ int find_index_of_client(char *client_id) {
     } 
     else {
       if (!strcmp(client_id, list_of_all_clients[i].client_id)) {
-        printf("Found index: %d\n", i);
+        // printf("Found index: %d\n", i);
         return i;
       }
     }
   }
-  printf("Couldn't find index\n");
+  // printf("Couldn't find index\n");
 
   return -1;
 }

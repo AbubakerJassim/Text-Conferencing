@@ -22,6 +22,33 @@ struct client list_of_all_clients[MAX_CLIENTS] = {0};
 
 struct session list_of_all_active_sessions[MAX_SESSIONS] = {0};
 
+void initialize_globals() {
+    for (int i = 0; i < MAX_SESSIONS; i++) {
+        memset(&list_of_all_active_sessions[i], 0, sizeof(struct session));  
+    }
+
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        memset(&list_of_all_clients[i], 0, sizeof(struct client));  
+        
+    }
+}
+
+
+bool is_session_empty(int index_of_session){
+
+  for(int i = 0; i < MAX_CLIENTS_IN_SESSION; i++){
+    if(list_of_all_active_sessions[index_of_session].clients_in_session[i].active){
+    
+      printf("Problem is at index %d, where status is %d\n", i, list_of_all_active_sessions[index_of_session].clients_in_session[i].active);
+      return false;
+    }
+  
+  }
+
+  return true;
+
+}
+
 int find_index_of_client(char *client_id) {
   for (int i = 0; i < MAX_CLIENTS; i++) {
     if (list_of_all_clients[i].client_id[0] == '\0') {
@@ -163,6 +190,29 @@ void join_session(struct message message_received, int sockfd){
     
     // Somehow must check what session this user is in ?
 
+    for(int i = 0; i < MAX_SESSIONS; i++){
+        for(int j = 0; j < MAX_CLIENTS_IN_SESSION; j++){
+              if(strcmp(list_of_all_active_sessions[i].clients_in_session[j].client_id, message_received.source) == 0){
+
+                struct message message_to_send = {
+                    .type = JN_NAK,
+                    .source = "",  // Not sure about this
+                };
+              
+                message_received.data[message_received.size] = '\0';
+                sprintf(message_to_send.data, "%s, Already in a session\n", message_received.data);
+                message_to_send.size = strlen(message_to_send.data);
+                char buf[BUFFER_SIZE];
+                create_message(message_to_send, buf);
+                pthread_mutex_unlock(&clients_mutex);
+                send(sockfd, buf, strlen(buf), 0);
+                return;
+
+            }
+        }
+    }
+
+
 
     printf("Session to join is: %d\n", index_of_session);
 
@@ -180,15 +230,7 @@ void join_session(struct message message_received, int sockfd){
     for(int i = 0; i< MAX_CLIENTS_IN_SESSION; i++){
         if (list_of_all_active_sessions[index_of_session].clients_in_session[i].client_id[0] == '\0')
         {
-          // printf("Before change : list_of_all_active_sessions[index_of_session].clients_in_session[i].client_id = %s\n", 
-          // list_of_all_active_sessions[index_of_session].clients_in_session[i].client_id);
-
           list_of_all_active_sessions[index_of_session].clients_in_session[i] = list_of_all_clients[find_index_of_client(message_received.source)];
-          // printf("Index within list_of_all_active_sessions[0].clients_in_session is %d, should be 0\n", i);
-
-          // printf("After change : list_of_all_active_sessions[index_of_session].clients_in_session[i].client_id = %s\n", 
-          // list_of_all_active_sessions[index_of_session].clients_in_session[i].client_id);
-
           break;
         }
         
@@ -204,6 +246,7 @@ void join_session(struct message message_received, int sockfd){
 void leave_session(struct message message_received, int sockfd){
     printf("In leave session\n");
     pthread_mutex_lock(&clients_mutex);
+
     for(int i = 0; i < MAX_SESSIONS; i++){
         for(int j = 0; j < MAX_CLIENTS_IN_SESSION; j++){
               if(strcmp(list_of_all_active_sessions[i].clients_in_session[j].client_id, message_received.source) == 0){
@@ -211,25 +254,20 @@ void leave_session(struct message message_received, int sockfd){
                 list_of_all_active_sessions[i].clients_in_session[j].client_id[0] = '\0';
                 list_of_all_active_sessions[i].clients_in_session[j].sockfd = -1;
                 list_of_all_active_sessions[i].clients_in_session[j].active = false;
+                
+                printf("Right before we went into function, list_of_all_active_sessions[%d].clients_in_session%d].active = %d",
+                i, j, list_of_all_active_sessions[i].clients_in_session[j].active );
 
                 printf("session_id[0].clients[0] = %s", list_of_all_active_sessions[i].clients_in_session[j].client_id);
 
-                bool is_session_empty = true;
-                for(int k = 0; k <= MAX_CLIENTS_IN_SESSION; k++){
-                  if(list_of_all_active_sessions[i].clients_in_session[k].client_id[0] == '\0'){
-                    continue;
-                  }
-                  else{
-                    is_session_empty = true;
-                    break;
-                  }
-                  
-                  if(is_session_empty);
-                    list_of_all_active_sessions[i].session_id[0] = '\0';
+                pthread_mutex_unlock(&clients_mutex);  // Sanity unlock
 
+                if(is_session_empty(i)){
+                  list_of_all_active_sessions[i].session_id[0] = '\0';
                 }
 
-                break;
+                return;
+
             }
         }
     }
@@ -237,13 +275,15 @@ void leave_session(struct message message_received, int sockfd){
 
     pthread_mutex_unlock(&clients_mutex);  // Sanity unlock
     return;
+
+
 }
 
 void new_session(struct message message_received, int sockfd){
     printf("Within new session\n");
     pthread_mutex_lock(&clients_mutex);
     int index_of_client = find_index_of_client(message_received.source);
-    struct session session_to_add;
+    struct session session_to_add = {0};
     strcpy(session_to_add.session_id, message_received.data);  
     session_to_add.clients_in_session[0] = list_of_all_clients[index_of_client];
 
@@ -314,7 +354,9 @@ void message_type(struct message message_received, int sockfd){
   }
 
 
-void query_type(struct message message_received, int sockfd){
+
+
+void query_type(struct message message_received, int sockfd){ 
 
     printf("Within Query\n");
     pthread_mutex_lock(&clients_mutex); 
@@ -359,12 +401,19 @@ void *client_handler(void *client_fd_pt) {
   free(client_fd_pt);
   bool logged_in = false;
   char buf[BUFFER_SIZE];
+  
   while (1) {
     printf("client handler, waiting for stuff...\n");
 
-    // ssize_t bytes_sent = send(client_fd, buf, strlen(buf), 0);
-
     int bytes_received = recv(client_fd, buf, BUFFER_SIZE, 0);
+    
+    if (bytes_received == 0) {
+      // Client has disconnected
+      printf("Client disconnected\n");
+      close(client_fd);
+      pthread_exit(NULL);
+    } 
+
     struct message message_received = {};
 
     process_message(&message_received, buf);
@@ -373,6 +422,11 @@ void *client_handler(void *client_fd_pt) {
       if (login_type(message_received, client_fd) != -1) {
         logged_in = true;
       }
+      else{
+        close(client_fd);
+        pthread_exit(NULL);
+      }
+
       continue;
     }
 
@@ -414,13 +468,18 @@ int main(int argc, char *argv[]) {
     exit(EXIT_FAILURE);
   }
 
+  initialize_globals();
   strcpy(list_of_all_clients[0].client_id, "Abubakr");
   strcpy(list_of_all_clients[0].password, "abubaker2003");
   list_of_all_clients[0].active = false;
 
   strcpy(list_of_all_clients[1].client_id, "Taha");
   strcpy(list_of_all_clients[1].password, "taha2003");
-  list_of_all_clients[0].active = false;
+  list_of_all_clients[1].active = false;
+
+  strcpy(list_of_all_clients[2].client_id, "Talha");
+  strcpy(list_of_all_clients[2].password, "talha2003");
+  list_of_all_clients[2].active = false;
 
   int sockfd, new_fd;
   struct addrinfo hints, *servinfo, *p;

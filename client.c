@@ -36,13 +36,17 @@ typedef enum {
   INVALID,
   REGISTER,
   REGISTER_ACK,
-  REGISTER_NACK
+  REGISTER_NACK,
+  PRIVATE_MSG,
+  PRIVATE_MSG_ACK,
+  PRIVATE_MSG_NACK
 } PacketType;
 
 void* listenToServer(void* socketNetworkFileDescriptor) {
     while(1) {
 
         char serverResponse[1000];
+        memset(serverResponse, 0, sizeof(serverResponse));
         
         
         int bytes = recv(*(int*)socketNetworkFileDescriptor, serverResponse, sizeof(serverResponse),0);
@@ -78,7 +82,7 @@ void* listenToServer(void* socketNetworkFileDescriptor) {
         //Extracting the source ID
     
         char* packetSource = NULL;
-        if(valueOfType==MESSAGE) {
+        if((valueOfType==MESSAGE)||(valueOfType==PRIVATE_MSG)) {
             secondColon++;
             char* thirdColon = strrchr(serverResponse, ':');
             int sourceLength = thirdColon - secondColon + 1;
@@ -89,14 +93,13 @@ void* listenToServer(void* socketNetworkFileDescriptor) {
 
         //Extracting Packet Data
         char Data[1000];
+        memset(Data, 0, sizeof(Data));
 
         if(packet_size!=0) {
     
             strncpy(Data, &serverResponse[strlen(serverResponse)-packet_size], packet_size);
             Data[packet_size] = '\0';
-        }
-        
-        
+        }        
 
         if(valueOfType==JN_NAK) {
             printf("ERROR: %s\n", Data);
@@ -111,14 +114,24 @@ void* listenToServer(void* socketNetworkFileDescriptor) {
         } else if(valueOfType==NS_ACK) {
             sem_post(&semaphore);
 
-        } else if(valueOfType==MESSAGE) {
-            printf("From User %s: %s\n", packetSource, Data);
-            
+        } else if((valueOfType==MESSAGE)||(valueOfType==PRIVATE_MSG)) {
+            if(valueOfType==PRIVATE_MSG) {
+                printf("(pMessage) From User %s: %s\n", packetSource, Data);
+
+            } else {
+                printf("From User %s: %s\n", packetSource, Data);
+            }     
 
         } else if (valueOfType==QU_ACK) {
             printf("%s\n", Data);
             sem_post(&semaphore);
 
+        } else if (valueOfType==PRIVATE_MSG_NACK) {
+            printf("ERROR: %s\n", Data);
+            sem_post(&semaphore);
+
+        } else if (valueOfType==PRIVATE_MSG_ACK) {
+            sem_post(&semaphore);
         }
         
 
@@ -293,8 +306,6 @@ int main(void) {
                 send(socketNetworkFileDescriptor,clientData, strlen(clientData), 0);
                 sem_wait(&semaphore);
                 printf("SUCCESS: you have successfully created a session with ID %s\n", sequenceID);
-                
-                
             
             } else if(strcmp(command, "/list")==0) {
                 sprintf(clientData, "%d:%d:%s:", QUERY, 0, userID);
@@ -302,6 +313,18 @@ int main(void) {
                 send(socketNetworkFileDescriptor,clientData, strlen(clientData), 0);
                 sem_wait(&semaphore);
     
+            }  else if(strcmp(command, "/pmessage")==0) {
+                char* messageTo = strchr(sequenceID, ' ');
+
+                char pMessageTo[100];
+                memset(pMessageTo, 0, sizeof(pMessageTo));
+
+                memcpy(pMessageTo, sequenceID, messageTo-sequenceID);
+                sprintf(clientData, "%d:%d:%s %s:%s", PRIVATE_MSG, (int)strlen(messageTo+1), userID, pMessageTo, messageTo+1);
+
+                send(socketNetworkFileDescriptor,clientData, strlen(clientData), 0);
+                sem_wait(&semaphore);
+            
             } else {
                 sprintf(clientData, "%d:%d:%s:%s %s", MESSAGE, (int)strlen(command) + (int)strlen(sequenceID)+1, userID, command,sequenceID);
 

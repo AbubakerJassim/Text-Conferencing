@@ -31,7 +31,10 @@ typedef enum {
   INVALID,
   REGISTER,
   REGISTER_ACK,
-  REGISTER_NACK
+  REGISTER_NACK,
+  PRIVATE_MSG,
+  PRIVATE_MSG_ACK,
+  PRIVATE_MSG_NACK
 } PacketType;
 
 struct client {

@@ -20,8 +20,23 @@ pthread_mutex_t lock;
 bool Error = false;
 
 typedef enum {
-    LOGIN, LO_ACK, LO_NAK, EXIT, JOIN, JN_ACK, JN_NAK,
-    LEAVE_SESS, NEW_SESS, NS_ACK, MESSAGE, QUERY, QU_ACK, INVALID
+  LOGIN,
+  LO_ACK,
+  LO_NAK,
+  EXIT,
+  JOIN,
+  JN_ACK,
+  JN_NAK,
+  LEAVE_SESS,
+  NEW_SESS,
+  NS_ACK,
+  MESSAGE,
+  QUERY,
+  QU_ACK,
+  INVALID,
+  REGISTER,
+  REGISTER_ACK,
+  REGISTER_NACK
 } PacketType;
 
 void* listenToServer(void* socketNetworkFileDescriptor) {
@@ -140,12 +155,12 @@ int main(void) {
         memset(serverResponse, 0, sizeof(serverResponse));
 
         printf("Welcome User to the Text Conferencing application\n");
-        printf("Login by following the format (/login <client ID> <password> <server-IP> <server-port>): ");
+        printf("Login or Register by following the format (/login (/register) <client ID> <password> <server-IP> <server-port>): ");
         fgets(logInInfo, 1000, stdin);
         logInInfo[strcspn(logInInfo, "\n")] = '\0';
         int result = sscanf(logInInfo, "%s %s %s %s %d",  userCommand, userID, password, serverIP, &serverPort );
 
-        if(strcmp(userCommand, "/login")!=0) {
+        if((strcmp(userCommand, "/login")!=0) && (strcmp(userCommand, "/register")!=0)) {
             printf("ERROR: USER LOGIN COMMAND IS EITHER INCORRECT OR USER DID NOT TRY TO LOGIN.\n");
             printf("PLEASE TRY AGAIN \n\n");
 
@@ -181,19 +196,33 @@ int main(void) {
 
             char clientUserInfo[1000];
             memset(clientUserInfo, 0, 1000);
-            
-            sprintf(clientUserInfo, "%d:%d:%s:%s", LOGIN, (int)strlen(password), userID, password);            
+
+            if(strcmp(userCommand, "/register")==0) {
+                sprintf(clientUserInfo, "%d:%d:%s:%s", REGISTER, (int)strlen(password), userID, password);            
+
+            } else {
+                sprintf(clientUserInfo, "%d:%d:%s:%s", LOGIN, (int)strlen(password), userID, password);            
+
+            }
+
             send(socketNetworkFileDescriptor, clientUserInfo, strlen(clientUserInfo), 0);
+            
 
             int responseBytes = recv(socketNetworkFileDescriptor, serverResponse, 2000,0);
 
 
             if((serverResponse[1]!=':') || (serverResponse[0]!='1')) {
-                char* errorMessage = strrchr(serverResponse, ':') + 1;
-                printf("ERROR: %s.\n\n", errorMessage);
+                if((serverResponse[0]=='1') && (serverResponse[1]=='5')) {
+                    printf("SUCCESS: You have successfully registered into the system\n");
+
+                } else {
+                    char* errorMessage = strrchr(serverResponse, ':') + 1;
+                    printf("ERROR: %s.\n\n", errorMessage);
+
+                }
                 close(socketNetworkFileDescriptor);
                 continue;
-            }
+            } 
 
             
             

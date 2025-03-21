@@ -410,7 +410,7 @@ void query_type(struct message message_received, int sockfd) {
   send(sockfd, buf_to_send, strlen(buf_to_send), 0);
 }
 
-void register_type(struct message message_received, int sockfd) {
+void register_type(struct message message_received, int sockfd){
   pthread_mutex_lock(&clients_mutex);
 
   if (find_index_of_client(message_received.source) != -1) {
@@ -428,6 +428,15 @@ void register_type(struct message message_received, int sockfd) {
     return;
   }
 
+  FILE *file = fopen("users.txt", "a+");
+  if (file == NULL) {
+    perror("Error opening file");
+    return;
+  }
+
+  fprintf(file, "%s:%s\n", message_received.source, message_received.data);
+  fclose(file);
+
   for (int i = 0; i < MAX_CLIENTS; i++) {
     if (list_of_all_clients[i].client_id[0] == '\0') {  
       strcpy(list_of_all_clients[i].client_id, message_received.source);
@@ -440,9 +449,9 @@ void register_type(struct message message_received, int sockfd) {
 
   struct message message_to_send = {
     .type = REGISTER_ACK,
-    .size = strlen("Registration successful"),
+    .size = 0,
     .source = "",
-    .data = "Registration successful"
+    .data = ""
   };
 
   char buf[BUFFER_SIZE];
@@ -450,6 +459,117 @@ void register_type(struct message message_received, int sockfd) {
   send(sockfd, buf, strlen(buf), 0);
 
   pthread_mutex_unlock(&clients_mutex);
+}
+
+
+void private_msg_type(struct message message_received, int sockfd){
+  // printf("Within private_msg\n");
+  char sender[MAX_NAME];
+  char reciever[MAX_NAME];
+
+  char *space = strchr(message_received.source, ' ');
+  int sender_length = space - message_received.source;
+
+  memcpy(sender, message_received.source, sender_length);
+  sender[sender_length] = '\0'; 
+  strcpy(reciever, space + 1);
+
+  if(find_index_of_client(reciever) == -1){
+    // printf("Index doesn't exist\n");
+    struct message message_to_send = {
+      .type = PRIVATE_MSG_NACK,
+      .size = strlen("Sender does not exist"),
+      .source = "",
+      .data = "Sender does not exist"
+    };
+
+    char buf[BUFFER_SIZE];
+    create_message(message_to_send, buf);
+    send(sockfd, buf, strlen(buf), 0);
+    return;
+  }
+
+  if(!list_of_all_clients[find_index_of_client(reciever)].active){
+    // printf("Sender is not online\n");
+    struct message message_to_send = {
+      .type = PRIVATE_MSG_NACK,
+      .size = strlen("Sender is not online"),
+      .source = "",
+      .data = "Sender is not online"
+    };
+
+    char buf[BUFFER_SIZE];
+    create_message(message_to_send, buf);
+    send(sockfd, buf, strlen(buf), 0);
+    return;
+  }
+
+  // printf("Private message index found. %s is sending to %s\n", sender, reciever);
+  // Send private message of reciever to sender
+  struct message message_to_send_to_reciever = {
+    .type = PRIVATE_MSG,
+    .size = strlen(message_received.data)
+  };
+  strcpy(message_to_send_to_reciever.source, sender);
+  strcpy(message_to_send_to_reciever.data, message_received.data);
+  char buf[BUFFER_SIZE];
+  create_message(message_to_send_to_reciever, buf);
+  // printf("Sent %s to %s", buf, reciever);
+  send(list_of_all_clients[find_index_of_client(reciever)].sockfd, buf, strlen(buf), 0);
+
+  // Send PRIVATE_MSG_ACK to sender
+  struct message message_to_send_to_sender = {
+    .type = PRIVATE_MSG_ACK,
+    .size = 0,
+    .source = "",
+    .data = ""
+  };
+  char buf2[BUFFER_SIZE];
+  create_message(message_to_send_to_sender, buf2);
+  printf("Sent %s to %s", buf2, sender);
+  send(sockfd, buf2, strlen(buf2), 0);
+
+}
+
+void load_users(){
+  FILE* file = fopen("users.txt", "r");
+
+  char line[BUFFER_SIZE];
+
+  if (file != NULL) {
+    // Read each line from the file and store it in the line buffer
+
+    int index_of_user_array = 0;
+    while (fgets(line, sizeof(line), file)){
+     
+      line[strcspn(line, "\n")] = '\0';  
+      char username[MAX_NAME];
+      char password[MAX_NAME];
+      
+      char *colon_pointer = strchr(line, ':');
+
+      int username_len = colon_pointer - line;
+
+      memcpy(username, line, username_len);
+      username[username_len] = '\0'; 
+
+
+      char *password_start = colon_pointer + 1;
+      memcpy(password, password_start, strlen(password_start) + 1); 
+      
+      strcpy(list_of_all_clients[index_of_user_array].client_id, username);
+      strcpy(list_of_all_clients[index_of_user_array].password, password); 
+      list_of_all_clients[index_of_user_array].active = false; 
+      list_of_all_clients[index_of_user_array].sockfd = -1;
+      
+      index_of_user_array++;
+
+
+      // printf("%s", line);
+      // printf("list_of_all_clients[%d] = %s\n", index_of_user_array, list_of_all_clients[index_of_user_array].client_id);
+    }
+  }
+
 }
 
 void *client_handler(void *client_fd_pt) {
@@ -515,6 +635,10 @@ void *client_handler(void *client_fd_pt) {
         query_type(message_received, client_fd);
         break;
 
+      case PRIVATE_MSG:
+        private_msg_type(message_received, client_fd);
+        break;
+
       default:
         break;
     }
@@ -528,17 +652,18 @@ int main(int argc, char *argv[]) {
   }
 
   initialize_globals();
-  strcpy(list_of_all_clients[0].client_id, "Abubakr");
-  strcpy(list_of_all_clients[0].password, "abubaker2003");
-  list_of_all_clients[0].active = false;
+  load_users();
+  // strcpy(list_of_all_clients[0].client_id, "Abubakr");
+  // strcpy(list_of_all_clients[0].password, "abubaker2003");
+  // list_of_all_clients[0].active = false;
 
-  strcpy(list_of_all_clients[1].client_id, "Taha");
-  strcpy(list_of_all_clients[1].password, "taha2003");
-  list_of_all_clients[1].active = false;
+  // strcpy(list_of_all_clients[1].client_id, "Taha");
+  // strcpy(list_of_all_clients[1].password, "taha2003");
+  // list_of_all_clients[1].active = false;
 
-  strcpy(list_of_all_clients[2].client_id, "Talha");
-  strcpy(list_of_all_clients[2].password, "talha2003");
-  list_of_all_clients[2].active = false;
+  // strcpy(list_of_all_clients[2].client_id, "Talha");
+  // strcpy(list_of_all_clients[2].password, "talha2003");
+  // list_of_all_clients[2].active = false;
 
   int sockfd, new_fd;
   struct addrinfo hints, *servinfo, *p;

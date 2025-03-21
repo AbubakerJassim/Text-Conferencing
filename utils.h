@@ -28,7 +28,10 @@ typedef enum {
   MESSAGE,
   QUERY,
   QU_ACK,
-  INVALID
+  INVALID,
+  REGISTER,
+  REGISTER_ACK,
+  REGISTER_NACK
 } PacketType;
 
 struct client {
